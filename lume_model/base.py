@@ -300,8 +300,24 @@ class LUMEBaseModel(BaseModel, ABC):
     def output_names(self) -> list[str]:
         return [var.name for var in self.output_variables]
 
-    @abstractmethod
     def evaluate(self, input_dict: dict[str, Any]) -> dict[str, Any]:
+        self.validate_input(input_dict)
+        output_dict = self._evaluate(input_dict)
+        self.validate_output(output_dict)
+        return output_dict
+
+    @abstractmethod
+    def _evaluate(self, input_dict: dict[str, Any]) -> dict[str, Any]:
+        pass
+
+    def validate_input(self, input_dict: dict[str, Any]) -> dict[str, Any]:
+        for name, value in input_dict.items():
+            self.input_variables[self.input_names.index(name)].validate_value(
+                value,
+                config=self.validation_config[name]
+            )
+
+    def validate_output(self, output_dict: dict[str, Any]): # analogously to validate_input
         pass
 
     def to_json(self, **kwargs) -> str:

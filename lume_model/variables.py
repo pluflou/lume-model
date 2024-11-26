@@ -15,6 +15,13 @@ logger = logging.getLogger(__name__)
 # define generic value type
 Value = TypeVar("Value")
 
+'''
+TODO:
+- implement validation_config
+- add validate_value and _validate range to each var def
+- clean up: remove "value"
+- clean up: remove "is_constant" etc?
+'''
 
 class Variable(BaseModel, Generic[Value]):
     """
