@@ -53,7 +53,7 @@ class ScalarVariable(BaseModel):
     )
 
 
-class InputVariable(Variable, Generic[Value]):
+class InputVariable(Variable):
     """
     Base class for input variables.
 
@@ -65,7 +65,7 @@ class InputVariable(Variable, Generic[Value]):
     is_constant: bool = Field(False)
 
 
-class OutputVariable(Variable, Generic[Value]):
+class OutputVariable(Variable):
     """
     Base class for output variables. Value and range assignment are optional.
 
