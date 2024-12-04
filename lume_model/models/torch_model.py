@@ -120,7 +120,6 @@ class TorchModel(LUMEBaseModel):
         """
         formatted_inputs = self._format_inputs(input_dict)
         input_tensor = self._arrange_inputs(formatted_inputs)
-        print(input_tensor) # to check of defaults were applied
         input_tensor = self._transform_inputs(input_tensor)
         output_tensor = self.model(input_tensor)
         output_tensor = self._transform_outputs(output_tensor)

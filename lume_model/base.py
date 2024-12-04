@@ -230,6 +230,7 @@ class LUMEBaseModel(BaseModel, ABC):
     """
     input_variables: list[SerializeAsAny[InputVariable]]
     output_variables: list[SerializeAsAny[OutputVariable]]
+    validation_config: dict[str, dict[str,bool]] = {} # var_name: var_config
 
     model_config = ConfigDict(arbitrary_types_allowed=True, validate_assignment=True)
 
@@ -301,6 +302,13 @@ class LUMEBaseModel(BaseModel, ABC):
     @property
     def output_names(self) -> list[str]:
         return [var.name for var in self.output_variables]
+
+    # @property
+    # def validation_config(self) -> dict[str, Any]:
+    #     if not self.validation_config:
+    #         return {var.name: {} for var in self.input_variables}
+    #     else:
+    #         return self.validation_config
 
     def evaluate(self, input_dict: dict[str, Any]) -> dict[str, Any]:
         self.validate_input(input_dict)

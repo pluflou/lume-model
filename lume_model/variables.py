@@ -8,6 +8,7 @@ For now, only scalar variables (floats) are supported.
 import logging
 from typing import Optional, Generic, TypeVar
 from pydantic import BaseModel, Field
+import torch
 
 logger = logging.getLogger(__name__)
 
@@ -17,9 +18,8 @@ Value = TypeVar("Value")
 
 '''
 TODO:
-- implement validation_config
+- implement validation_config: at instantiation? optional w/ default or required?
 - add validate_value and _validate range to each var def
-- clean up: remove "value"
 - clean up: remove "is_constant" etc?
 '''
 
@@ -32,6 +32,7 @@ class Variable(BaseModel, Generic[Value]):
         precision: Precision to use for the value.
     """
     name: str
+    value: Optional[Value] = None
     precision: Optional[int] = None
 
 
@@ -100,19 +101,21 @@ class ScalarInputVariable(InputVariable[float], ScalarVariable):
         Returns: None
         """
         #super.validate_value(value, config) # implement in parents if needed
-        #self.__pydantic_validator__.validate_assignment(self, "value", value) # what does this check exactly?
-        #self._validate_range(value) if config["range"] else None
-        pass
-    def _validate_range(self, value: Value):
-        """
-        Validate value against value_range.
-        Args:
-            value: Value to validate.
+        print(value, type(value))
+        # Check that value is a float
+        self.__pydantic_validator__.validate_assignment(self, "value", value)
+        if isinstance(value, torch.Tensor):
+            self._validate_tensor_type(value)
+        # Check that value is within range
+        self._validate_range(value) if config["range"] else None
 
-        Returns: None
-        """
+    def _validate_range(self, value: Value):
         if value < self.value_range[0] or value > self.value_range[1]:
             raise ValueError(f"Value {value} is outside of range {self.value_range}")
+
+    def _validate_tensor_type(self, value: Value):
+        if value.dtype not in [torch.float64, torch.float32]:
+            raise ValueError(f"Value {value} is not a 32-bit or 64-bit floating point")
 
 
 class ScalarOutputVariable(OutputVariable[float], ScalarVariable):
