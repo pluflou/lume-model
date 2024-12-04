@@ -29,11 +29,9 @@ class Variable(BaseModel, Generic[Value]):
 
     Attributes:
         name: Name of the variable.
-        value: Value assigned to the variable.
         precision: Precision to use for the value.
     """
     name: str
-    value: Optional[Value] = None
     precision: Optional[int] = None
 
 
@@ -91,6 +89,30 @@ class ScalarInputVariable(InputVariable[float], ScalarVariable):
         ```
     """
     value_range: list[float]
+
+    def validate_value(self, value: Value, config: dict[str, bool]):
+        """
+        Validate input value
+        Args:
+            value: Value to validate.
+            config: Validation configuration.
+
+        Returns: None
+        """
+        #super.validate_value(value, config) # implement in parents if needed
+        #self.__pydantic_validator__.validate_assignment(self, "value", value) # what does this check exactly?
+        #self._validate_range(value) if config["range"] else None
+        pass
+    def _validate_range(self, value: Value):
+        """
+        Validate value against value_range.
+        Args:
+            value: Value to validate.
+
+        Returns: None
+        """
+        if value < self.value_range[0] or value > self.value_range[1]:
+            raise ValueError(f"Value {value} is outside of range {self.value_range}")
 
 
 class ScalarOutputVariable(OutputVariable[float], ScalarVariable):

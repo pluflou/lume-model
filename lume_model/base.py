@@ -271,13 +271,15 @@ class LUMEBaseModel(BaseModel, ABC):
         """Initializes LUMEBaseModel.
 
         Args:
-            *args: Accepts a single argument which is the model configuration as dictionary, YAML or JSON
-              formatted string or file path.
+            *args: Accepts a single argument which is the model configuration as dictionary,
+              YAML or JSON formatted string or file path.
             **kwargs: See class attributes.
         """
         if len(args) == 1:
             if len(kwargs) > 0:
-                raise ValueError("Cannot specify YAML string and keyword arguments for LUMEBaseModel init.")
+                raise ValueError(
+                    "Cannot specify YAML string and keyword arguments for LUMEBaseModel init."
+                )
             super().__init__(**parse_config(args[0], self.model_fields))
         elif len(args) > 1:
             raise ValueError(
@@ -301,7 +303,7 @@ class LUMEBaseModel(BaseModel, ABC):
         return [var.name for var in self.output_variables]
 
     def evaluate(self, input_dict: dict[str, Any]) -> dict[str, Any]:
-        #self.validate_input(input_dict)
+        self.validate_input(input_dict)
         output_dict = self._evaluate(input_dict)
         #self.validate_output(output_dict)
         return output_dict

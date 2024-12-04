@@ -120,7 +120,7 @@ class TorchModel(LUMEBaseModel):
         """
         formatted_inputs = self._format_inputs(input_dict)
         input_tensor = self._arrange_inputs(formatted_inputs)
-        print(input_tensor)
+        print(input_tensor) # to check of defaults were applied
         input_tensor = self._transform_inputs(input_tensor)
         output_tensor = self.model(input_tensor)
         output_tensor = self._transform_outputs(output_tensor)
@@ -241,21 +241,17 @@ class TorchModel(LUMEBaseModel):
         formatted_inputs = {}
         for var_name, var in input_dict.items():
 
-            if isinstance(var, InputVariable):
-                formatted_inputs[var_name] = torch.tensor(var.value, **self._tkwargs)
-                # self.input_variables[self.input_names.index(var_name)].value = var.value
-            elif isinstance(var, float):
+            if isinstance(var, float):
                 formatted_inputs[var_name] = torch.tensor(var, **self._tkwargs)
-                # self.input_variables[self.input_names.index(var_name)].value = var
             elif isinstance(var, torch.Tensor):
                 var = var.double().squeeze().to(self.device)
                 formatted_inputs[var_name] = var
-                # if var.dim() == 0:
-                #     self.input_variables[self.input_names.index(var_name)].value = var.item()
+
             else:
-                TypeError(
+                # Ideally we never get here with the validations in place
+                raise TypeError(
                     f"Unknown type {type(var)} passed to evaluate."
-                    f"Should be one of InputVariable, float or torch.Tensor."
+                    f"Should be one of float or torch.Tensor."
                 )
         return formatted_inputs
 
