@@ -106,7 +106,7 @@ class TorchModel(LUMEBaseModel):
             raise ValueError(f"Unknown output format {v}, expected one of {supported_formats}.")
         return v
 
-    def evaluate(
+    def _evaluate(
             self,
             input_dict: dict[str, Union[InputVariable, float, torch.Tensor]],
     ) -> dict[str, Union[OutputVariable, float, torch.Tensor]]:
@@ -120,6 +120,7 @@ class TorchModel(LUMEBaseModel):
         """
         formatted_inputs = self._format_inputs(input_dict)
         input_tensor = self._arrange_inputs(formatted_inputs)
+        print(input_tensor)
         input_tensor = self._transform_inputs(input_tensor)
         output_tensor = self.model(input_tensor)
         output_tensor = self._transform_outputs(output_tensor)
@@ -155,7 +156,7 @@ class TorchModel(LUMEBaseModel):
             Dictionary of variable names to outputs.
         """
         random_input = self.random_input(n_samples)
-        return self.evaluate(random_input)
+        return self._evaluate(random_input)
 
     def to(self, device: Union[torch.device, str]):
         """Updates the device for the model, transformers and default values.

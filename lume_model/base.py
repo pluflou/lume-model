@@ -301,9 +301,9 @@ class LUMEBaseModel(BaseModel, ABC):
         return [var.name for var in self.output_variables]
 
     def evaluate(self, input_dict: dict[str, Any]) -> dict[str, Any]:
-        self.validate_input(input_dict)
+        #self.validate_input(input_dict)
         output_dict = self._evaluate(input_dict)
-        self.validate_output(output_dict)
+        #self.validate_output(output_dict)
         return output_dict
 
     @abstractmethod
