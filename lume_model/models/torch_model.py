@@ -8,7 +8,7 @@ from pydantic import field_validator
 from botorch.models.transforms.input import ReversibleInputTransform
 
 from lume_model.base import LUMEBaseModel
-from lume_model.variables import ScalarVariable
+from lume_model.variables import ScalarVariable, ArrayVariable, ImageVariable
 from lume_model.models.utils import itemize_dict, format_inputs, InputDictModel
 
 logger = logging.getLogger(__name__)
@@ -181,16 +181,24 @@ class TorchModel(LUMEBaseModel):
         formatted_inputs = format_inputs(validated_input)
         # check default values for missing inputs
         filled_inputs = self._fill_default_inputs(formatted_inputs)
-        # itemize inputs for validation
-        itemized_inputs = itemize_dict(filled_inputs)
 
-        for ele in itemized_inputs:
-            # validate values that were in the torch tensor
-            # any ints in the torch tensor will be cast to floats by Pydantic
-            # but others will be caught, e.g. booleans
-            ele = InputDictModel(input_dict=ele).input_dict
-            # validate each value based on its var class and config
-            super().input_validation(ele)
+        # Validate each key based on its variable class and config
+        for i, var in enumerate(self.input_variables):
+            if isinstance(var, (ArrayVariable, ImageVariable)):
+                # run the validation for ArrayVariable and ImageVariable
+                super().input_validation({var.name: filled_inputs[var.name]})
+            elif isinstance(var, ScalarVariable):
+                # run the validation for ScalarVariable
+                # itemize inputs for validation
+                itemized_inputs = itemize_dict({var.name: filled_inputs[var.name]})
+                for ele in itemized_inputs:
+                    # iterates over samples in the input dict
+                    # validate values that were in the torch tensor
+                    # any ints in the torch tensor will be cast to floats by Pydantic
+                    # but others will be caught, e.g. booleans
+                    ele = InputDictModel(input_dict=ele).input_dict
+                    # validate each value based on its var class and configs
+                    super().input_validation(ele)
 
         # return the validated input dict for consistency w/ casting ints to floats
         if any([isinstance(value, torch.Tensor) for value in validated_input.values()]):
@@ -202,9 +210,14 @@ class TorchModel(LUMEBaseModel):
 
     def output_validation(self, output_dict: dict[str, Union[float, torch.Tensor]]):
         """Itemizes tensors before performing output validation."""
-        itemized_outputs = itemize_dict(output_dict)
-        for ele in itemized_outputs:
-            super().output_validation(ele)
+        for i, var in enumerate(self.output_variables):
+            if isinstance(var, (ArrayVariable, ImageVariable)):
+                # run the validation for ArrayVariable and ImageVariable
+                super().output_validation({var.name: output_dict[var.name]})
+            elif isinstance(var, ScalarVariable):
+                itemized_outputs = itemize_dict({var.name: output_dict[var.name]})
+                for ele in itemized_outputs:
+                    super().output_validation(ele)
 
     def random_input(self, n_samples: int = 1) -> dict[str, torch.Tensor]:
         """Generates random input(s) for the model.

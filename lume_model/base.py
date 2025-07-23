@@ -10,7 +10,14 @@ import yaml
 import numpy as np
 from pydantic import BaseModel, ConfigDict, field_validator
 
-from lume_model.variables import ScalarVariable, get_variable, ConfigEnum
+from build.lib.lume_model.variables import DistributionVariable
+from lume_model.variables import (
+    ScalarVariable,
+    get_variable,
+    ConfigEnum,
+    ArrayVariable,
+    ImageVariable,
+)
 from lume_model.utils import (
     try_import_module,
     verify_unique_variable_names,
@@ -271,8 +278,10 @@ class LUMEBaseModel(BaseModel, ABC):
           config for each output variable: {var_name: value}. Value can be "warn", "error", or None.
     """
 
-    input_variables: list[ScalarVariable]
-    output_variables: list[ScalarVariable]
+    input_variables: list[Union[ScalarVariable, ArrayVariable, ImageVariable]]
+    output_variables: list[
+        Union[ScalarVariable, ArrayVariable, ImageVariable, DistributionVariable]
+    ]
     input_validation_config: Optional[dict[str, ConfigEnum]] = None
     output_validation_config: Optional[dict[str, ConfigEnum]] = None
 
@@ -286,7 +295,15 @@ class LUMEBaseModel(BaseModel, ABC):
                 if isinstance(val, dict):
                     variable_class = get_variable(val["variable_class"])
                     new_value.append(variable_class(name=name, **val))
-                elif isinstance(val, ScalarVariable):
+                elif isinstance(
+                    val,
+                    (
+                        ScalarVariable,
+                        ArrayVariable,
+                        ImageVariable,
+                        DistributionVariable,
+                    ),
+                ):
                     new_value.append(val)
                 else:
                     raise TypeError(f"type {type(val)} not supported")

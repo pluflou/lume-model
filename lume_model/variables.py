@@ -7,13 +7,16 @@ For now, only scalar floating-point variables are supported.
 """
 
 from abc import ABC, abstractmethod
-from typing import Any, Optional, Type
+from typing import Any, Optional, Type, Tuple, Literal, Callable, Union
 from enum import Enum
 import math
 
 import numpy as np
+from numpy.typing import NDArray
+import torch
 from torch.distributions import Distribution as TDistribution
 from pydantic import BaseModel, field_validator, model_validator, ConfigDict
+from pydantic_core import core_schema
 
 
 class ConfigEnum(str, Enum):
@@ -187,6 +190,8 @@ class DistributionVariable(Variable):
         unit: Unit associated with the variable.
     """
 
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+
     unit: Optional[str] = None
 
     @property
@@ -221,6 +226,191 @@ class DistributionVariable(Variable):
             )
 
 
+class NumpyNDArray(np.ndarray):
+    """Custom Pydantic-compatible type for numpy.ndarray."""
+
+    @classmethod
+    def __get_pydantic_core_schema__(
+        cls, source: Any, handler: Callable[[Any], core_schema.CoreSchema]
+    ) -> core_schema.CoreSchema:
+        return core_schema.no_info_plain_validator_function(cls.validate)
+
+    @classmethod
+    def validate(
+        cls,
+        value: Any,
+        expected_shape: Tuple[int, ...] = None,
+        expected_dtype: np.dtype = None,
+    ) -> np.ndarray:
+        if not isinstance(value, np.ndarray):
+            raise TypeError(f"Value must be a numpy.ndarray, got {type(value)}")
+        if expected_shape and tuple(value.shape) != expected_shape:
+            raise ValueError(
+                f"Expected shape {expected_shape}, got {tuple(value.shape)}"
+            )
+        if expected_dtype and value.dtype != expected_dtype:
+            raise ValueError(f"Expected dtype {expected_dtype}, got {value.dtype}")
+        return value
+
+
+class TorchTensor(torch.Tensor):
+    """Custom Pydantic-compatible type for torch.Tensor."""
+
+    @classmethod
+    def __get_pydantic_core_schema__(
+        cls, source: Any, handler: Callable[[Any], core_schema.CoreSchema]
+    ) -> core_schema.CoreSchema:
+        return core_schema.no_info_plain_validator_function(cls.validate)
+
+    @classmethod
+    def validate(
+        cls,
+        value: Any,
+        expected_shape: Tuple[int, ...] = None,
+        expected_dtype: torch.dtype = None,
+        expected_device: str = None,
+    ) -> torch.Tensor:
+        if not isinstance(value, torch.Tensor):
+            raise TypeError(f"Value must be a torch.Tensor, got {type(value)}")
+        if expected_shape and tuple(value.shape) != expected_shape:
+            raise ValueError(
+                f"Expected shape {expected_shape}, got {tuple(value.shape)}"
+            )
+        if expected_dtype and value.dtype != expected_dtype:
+            raise ValueError(f"Expected dtype {expected_dtype}, got {value.dtype}")
+        if expected_device and value.device.type != expected_device:
+            raise ValueError(
+                f"Expected device {expected_device}, got {value.device.type}"
+            )
+        return value
+
+
+class ArrayVariable(Variable):
+    """
+    Variable for array data (NumpyNDArray or TorchTensor).
+
+    Attributes:
+        default_value: Default value for the variable.
+        name: Name of the variable.
+        shape: Shape of the array.
+        dtype: Data type of the array.
+        unit: Unit associated with the variable.
+        array_type: Type of array, either 'numpy' or 'torch'.
+        device: Device for torch.Tensor ('cpu' or 'cuda'), optional.
+    """
+
+    model_config = ConfigDict(arbitrary_types_allowed=True, validate_assignment=True)
+
+    default_value: Optional[Union[NDArray, torch.Tensor]] = None
+    shape: Tuple[int, ...]
+    dtype: Any
+    unit: Optional[str] = None
+    array_type: Literal["numpy", "torch"] = "torch"
+    device: Optional[str] = None
+
+    @property
+    def default_validation_config(self):
+        return "warn"
+
+    @model_validator(mode="after")
+    def validate_default_value(self):
+        if self.default_value is not None:
+            if self.array_type == "numpy":
+                if isinstance(self.default_value, np.ndarray):
+                    NumpyNDArray.validate(
+                        self.default_value,
+                        expected_shape=self.shape,
+                        expected_dtype=self.dtype,
+                    )
+                else:
+                    raise TypeError(
+                        f"Expected default_value to be a numpy.ndarray, "
+                        f"but received {type(self.default_value)}."
+                    )
+            elif self.array_type == "torch":
+                if isinstance(self.default_value, torch.Tensor):
+                    TorchTensor.validate(
+                        self.default_value,
+                        expected_shape=self.shape,
+                        expected_dtype=self.dtype,
+                        expected_device=self.device,
+                    )
+                else:
+                    raise TypeError(
+                        f"Expected default_value to be a torch.Tensor, "
+                        f"but received {type(self.default_value)}."
+                    )
+        return self
+
+    def validate_value(
+        self, value: Union[NumpyNDArray, TorchTensor], config: str = None
+    ):
+        _config = self.default_validation_config if config is None else config
+        # mandatory validation
+        print(value)
+        if self.array_type == "numpy":
+            NumpyNDArray.validate(
+                value,
+                expected_shape=self.shape,
+                expected_dtype=self.dtype,
+            )
+        elif self.array_type == "torch":
+            TorchTensor.validate(
+                value,
+                expected_shape=self.shape,
+                expected_dtype=self.dtype,
+                expected_device=self.device,
+            )
+        # optional validation
+        if config != "none":
+            pass  # TODO: implement optional validation logic, like range checks, checking for NaNs, etc.
+
+
+class ImageVariable(ArrayVariable):
+    """
+    Variable for image data (2D or 3D numpy arrays or torch tensors).
+
+    Enforces that shape is 2D or 3D and allows for image-specific metadata.
+    """
+
+    num_channels: Optional[int] = None  # 1 (grayscale), or 3 (RGB))
+
+    def validate_value(self, value: Any, config: ConfigEnum = None):
+        # First, use ArrayVariable validation
+        super().validate_value(value, config)
+        # Then, enforce image shape
+        if len(self.shape) not in (2, 3):
+            raise ValueError(
+                f"ImageVariable expects shape to be 2D or 3D, got {self.shape}."
+            )
+        if len(value.shape) not in (2, 3):
+            raise ValueError(
+                f"Value for ImageVariable must be 2D or 3D, got {value.shape}."
+            )
+
+        # TODO: leave section below or delete?
+        if self.num_channels is not None:
+            # Check for numpy arrays and torch tensors
+            if self.array_type == "numpy":
+                if len(value.shape) == 2 and self.num_channels != 1:
+                    raise ValueError(
+                        f"Expected 1 channel for grayscale image, got {self.num_channels}."
+                    )
+                elif len(value.shape) == 3 and value.shape[2] != self.num_channels:
+                    raise ValueError(
+                        f"Expected {self.num_channels} channels, got {value.shape[2]}."
+                    )
+            elif self.array_type == "torch":
+                if len(value.shape) == 2 and self.num_channels != 1:
+                    raise ValueError(
+                        f"Expected 1 channel for grayscale image, got {self.num_channels}."
+                    )
+                elif len(value.shape) == 3 and value.shape[0] != self.num_channels:
+                    raise ValueError(
+                        f"Expected {self.num_channels} channels, got {value.shape[0]}."
+                    )
+
+
 def get_variable(name: str) -> Type[Variable]:
     """Returns the Variable subclass with the given name.
 
@@ -230,7 +420,7 @@ def get_variable(name: str) -> Type[Variable]:
     Returns:
         Variable subclass with the given name.
     """
-    classes = [ScalarVariable, DistributionVariable]
+    classes = [ScalarVariable, DistributionVariable, ArrayVariable, ImageVariable]
     class_lookup = {c.__name__: c for c in classes}
     if name not in class_lookup.keys():
         raise KeyError(
