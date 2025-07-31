@@ -128,17 +128,57 @@ class ScalarVariable(Variable):
         _config = self.default_validation_config if config is None else config
         # mandatory validation
         self._validate_value_type(value)
-        # optional validation
+        value = self._validate_shape(value)
+        # optional validation for each scalar / element in the array
         if config != "none":
-            self._validate_value_is_within_range(value, config=_config)
+            for v in value:
+                self._validate_value_is_within_range(v, config=_config)
 
     @staticmethod
-    def _validate_value_type(value: float):
-        if not isinstance(value, float):
+    def _validate_value_type(value: Union[float, np.ndarray, torch.Tensor]):
+        if isinstance(value, (np.ndarray, torch.Tensor)):
+            if isinstance(value, np.ndarray):
+                if not np.issubdtype(value.dtype, np.floating):
+                    raise TypeError(
+                        f"Expected value to be of type {np.floating}, "
+                        f"but received {value.dtype}."
+                    )
+            elif isinstance(value, torch.Tensor):
+                if not torch.is_floating_point(value):
+                    raise TypeError(
+                        f"Expected value to be of type {torch.float64}, {torch.float32}, {torch.float16}, "
+                        f"or {torch.bfloat16}, but received {value.dtype}."
+                    )
+        elif isinstance(value, float):
+            pass
+        else:
             raise TypeError(
-                f"Expected value to be of type {float} or {np.float64}, "
-                f"but received {type(value)}."
+                f"Expected value to be of type {float}, a torch tensor of floats, or a numpy "
+                f"array of floats, but received {type(value)}."
             )
+
+    @staticmethod
+    def _validate_shape(value: Union[np.ndarray, torch.Tensor]):
+        """Validates that the last dimension of the array is 0 or 1.
+
+        Args:
+            value: Numpy array or torch tensor to validate.
+        """
+        if isinstance(value, (np.ndarray, torch.Tensor)):
+            if (
+                value.ndim == 0
+                or value.ndim == 1
+                or (value.ndim > 1 and value.shape[-1] in (0, 1))
+            ):
+                # itemize and validate each element in the array
+                return [v.item() if hasattr(v, "item") else v for v in value.flatten()]
+            else:
+                raise ValueError(
+                    f"Expected scalar to have ndim 0 or 1, or array variable to have the last dimension "
+                    f"be 0 or 1 for ScalarVariable type, but received {value.shape[-1]}."
+                )
+        else:  # float
+            return [value]
 
     def _validate_value_is_within_range(self, value: float, config: ConfigEnum = None):
         if not self._value_is_within_range(value):

@@ -9,7 +9,7 @@ from botorch.models.transforms.input import ReversibleInputTransform
 
 from lume_model.base import LUMEBaseModel
 from lume_model.variables import ScalarVariable, ArrayVariable, ImageVariable
-from lume_model.models.utils import itemize_dict, format_inputs, InputDictModel
+from lume_model.models.utils import itemize_dict, format_inputs
 
 logger = logging.getLogger(__name__)
 
@@ -175,38 +175,23 @@ class TorchModel(LUMEBaseModel):
         Returns:
             Validated input dictionary.
         """
-        # validate input type (ints only are cast to floats for scalars)
-        validated_input = InputDictModel(input_dict=input_dict).input_dict
         # format inputs as tensors w/o changing the dtype
-        formatted_inputs = format_inputs(validated_input)
+        formatted_inputs = format_inputs(input_dict)
+        # cast tensors to expected dtype and device
+        formatted_inputs = {
+            k: v.to(**self._tkwargs) for k, v in formatted_inputs.items()
+        }
         # check default values for missing inputs
         filled_inputs = self._fill_default_inputs(formatted_inputs)
+        # validate based on variable class and config
+        super().input_validation(filled_inputs)
 
-        # Validate each key based on its variable class and config
-        for i, var in enumerate(self.input_variables):
-            if isinstance(var, (ArrayVariable, ImageVariable)):
-                # run the validation for ArrayVariable and ImageVariable
-                super().input_validation({var.name: filled_inputs[var.name]})
-            elif isinstance(var, ScalarVariable):
-                # run the validation for ScalarVariable
-                # itemize inputs for validation
-                itemized_inputs = itemize_dict({var.name: filled_inputs[var.name]})
-                for ele in itemized_inputs:
-                    # iterates over samples in the input dict
-                    # validate values that were in the torch tensor
-                    # any ints in the torch tensor will be cast to floats by Pydantic
-                    # but others will be caught, e.g. booleans
-                    ele = InputDictModel(input_dict=ele).input_dict
-                    # validate each value based on its var class and configs
-                    super().input_validation(ele)
-
-        # return the validated input dict for consistency w/ casting ints to floats
-        if any([isinstance(value, torch.Tensor) for value in validated_input.values()]):
-            validated_input = {
-                k: v.to(**self._tkwargs) for k, v in validated_input.items()
-            }
-
-        return validated_input
+        # cast to desired dtype and device
+        # input_dict = format_inputs(input_dict)
+        # input_dict = {
+        #     k: v.to(**self._tkwargs) for k, v in input_dict.items()
+        # }
+        return input_dict
 
     def output_validation(self, output_dict: dict[str, Union[float, torch.Tensor]]):
         """Itemizes tensors before performing output validation."""
