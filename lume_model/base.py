@@ -10,7 +10,7 @@ import yaml
 import numpy as np
 from pydantic import BaseModel, ConfigDict, field_validator
 
-from build.lib.lume_model.variables import DistributionVariable
+from lume_model.variables import DistributionVariable
 from lume_model.variables import (
     ScalarVariable,
     get_variable,
