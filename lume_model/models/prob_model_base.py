@@ -6,7 +6,7 @@ import torch
 from torch.distributions import Distribution as TDistribution
 
 from lume_model.variables import DistributionVariable
-from lume_model.models.utils import InputDictModel, format_inputs, itemize_dict
+from lume_model.models.utils import format_inputs, itemize_dict
 from lume_model.base import LUMEBaseModel
 
 
@@ -150,28 +150,20 @@ class ProbModelBaseModel(LUMEBaseModel):  # TODO: brainstorm a better name
         Returns:
             Validated input dictionary.
         """
-        # validate input type (ints only are cast to floats for scalars)
-        validated_input = InputDictModel(input_dict=input_dict).input_dict
         # format inputs as tensors w/o changing the dtype
-        formatted_inputs = format_inputs(validated_input)
-        # itemize inputs for validation
-        itemized_inputs = itemize_dict(formatted_inputs)
+        formatted_inputs = format_inputs(input_dict.copy())
+        # cast tensors to expected dtype and device
+        formatted_inputs = {
+            k: v.to(**self._tkwargs) for k, v in formatted_inputs.items()
+        }
+        # validate based on variable class and config
+        super().input_validation(formatted_inputs)
 
-        for ele in itemized_inputs:
-            # validate values that were in the torch tensor
-            # any ints in the torch tensor will be cast to floats by Pydantic
-            # but others will be caught, e.g. booleans
-            ele = InputDictModel(input_dict=ele).input_dict
-            # validate each value based on its var class and config
-            super().input_validation(ele)
-
-        # return the validated input dict for consistency w/ casting ints to floats
-        if any([isinstance(value, torch.Tensor) for value in validated_input.values()]):
-            validated_input = {
-                k: v.to(**self._tkwargs).squeeze(-1) for k, v in validated_input.items()
-            }
-
-        return validated_input
+        # cast to desired shape, dtype and device
+        input_dict = {
+            k: v.to(**self._tkwargs).squeeze(-1) for k, v in input_dict.items()
+        }
+        return input_dict
 
     def output_validation(self, output_dict: dict[str, TDistribution]):
         """Itemizes tensors before performing output validation."""
