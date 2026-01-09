@@ -118,7 +118,9 @@ def recursive_serialize(
         elif isinstance(value, list) and all(isinstance(ele, dict) for ele in value):
             # e.g. NN ensemble
             v[key] = [
-                recursive_serialize(value[i], f"{base_key}{i}", file_prefix)
+                recursive_serialize(
+                    value[i], f"{base_key}{i}", file_prefix, save_models, save_jit
+                )
                 for i in range(len(value))
             ]
             # For NN ensembles, we want v[key] to be a list of the filenames corresponding to each
@@ -273,9 +275,9 @@ class LUMEBaseModel(BaseModel, ABC):
         input_variables: List defining the input variables and their order.
         output_variables: List defining the output variables and their order.
         input_validation_config: Determines the behavior during input validation by specifying the validation
-          config for each input variable: {var_name: value}. Value can be "warn", "error", or None.
+          config for each input variable: {var_name: value}. Value can be "warn", "error", or "none".
         output_validation_config: Determines the behavior during output validation by specifying the validation
-          config for each output variable: {var_name: value}. Value can be "warn", "error", or None.
+          config for each output variable: {var_name: value}. Value can be "warn", "error", or "none".
     """
 
     input_variables: list[Union[ScalarVariable, ArrayVariable, ImageVariable]]

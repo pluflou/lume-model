@@ -32,7 +32,10 @@ class NNEnsemble(ProbModelBaseModel):
     def validate_torch_model_list(cls, v):
         if all(isinstance(m, (str, os.PathLike)) for m in v):
             for i, m in enumerate(v):
-                fname = m.split("_model.pt")[0]
+                if m.endswith(".pt"):
+                    fname = m.split("_model.pt")[0]
+                elif m.endswith(".jit"):
+                    fname = m.split("_model.jit")[0]
                 if os.path.exists(m) and os.path.exists(f"{fname}.yml"):
                     # if it's a wrapper around TorchModel, might need a different class or a different way to load
                     v[i] = TorchModel(Path(f"{fname}.yml"))
@@ -111,8 +114,8 @@ class NNEnsemble(ProbModelBaseModel):
             model.dump(
                 f"{mod_file}_{idx}.yml",
                 base_key=base_key,
-                save_models=False,  # will be saved in the ensemble
-                save_jit=False,
+                save_models=save_models,
+                save_jit=save_jit,
             )
 
         # Save the ensemble of models
